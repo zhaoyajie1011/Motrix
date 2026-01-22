@@ -181,7 +181,27 @@ export default class Api {
       const args = compactUndefined([[uri], engineOptions])
       return ['aria2.addUri', ...args]
     })
-    return this.client.multicall(tasks)
+
+    // 分批处理，每批最多 100 个任务，避免一次性发送过多请求导致超时
+    const BATCH_SIZE = 100
+    if (tasks.length <= BATCH_SIZE) {
+      return this.client.multicall(tasks)
+    }
+
+    // 分批执行
+    const batches = []
+    for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
+      batches.push(tasks.slice(i, i + BATCH_SIZE))
+    }
+
+    // 串行执行每个批次，避免并发过高
+    return batches.reduce((promise, batch) => {
+      return promise.then((results) => {
+        return this.client.multicall(batch).then((batchResults) => {
+          return results.concat(batchResults || [])
+        })
+      })
+    }, Promise.resolve([]))
   }
 
   addTorrent (params) {

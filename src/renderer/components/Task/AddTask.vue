@@ -12,6 +12,40 @@
   >
     <el-form ref="taskForm" label-position="left" :model="form" :rules="rules">
       <el-tabs :value="type" @tab-click="handleTabClick">
+        <el-tab-pane :label="$t('task.txt-task')" name="txt">
+          <el-form-item>
+            <div class="txt-upload-area">
+              <el-upload
+                ref="txtUpload"
+                class="txt-uploader"
+                drag
+                action=""
+                :auto-upload="false"
+                :show-file-list="false"
+                :on-change="handleTxtFileChange"
+                accept=".txt"
+              >
+                <i class="el-icon-upload"></i>
+                <div class="el-upload__text">{{ $t('task.txt-upload-tips') }}</div>
+              </el-upload>
+              <div class="txt-file-info" v-if="form.txtFileName">
+                <span class="txt-file-name">{{ form.txtFileName }}</span>
+                <span class="txt-link-count">{{ $t('task.txt-link-count', { count: txtLinkCount }) }}</span>
+                <el-button type="text" @click="clearTxtFile">{{ $t('app.clear') }}</el-button>
+              </div>
+              <el-input
+                ref="txtUris"
+                type="textarea"
+                auto-complete="off"
+                :autosize="{ minRows: 5, maxRows: 10 }"
+                :placeholder="$t('task.txt-task-preview')"
+                v-model="form.txtUris"
+                v-if="form.txtUris"
+              >
+              </el-input>
+            </div>
+          </el-form-item>
+        </el-tab-pane>
         <el-tab-pane :label="$t('task.uri-task')" name="uri">
           <el-form-item>
             <el-input
@@ -148,10 +182,9 @@
           </el-col>
           <el-col :span="8" :xs="24">
             <div class="help-link">
-              <a target="_blank" href="https://github.com/agalwood/Motrix/wiki/Proxy" rel="noopener noreferrer">
+              <span>
                 {{ $t('preferences.proxy-tips') }}
-                <mo-icon name="link" width="12" height="12" />
-              </a>
+              </span>
             </div>
           </el-col>
         </el-row>
@@ -248,6 +281,13 @@
       },
       dialogTop () {
         return this.showAdvanced ? '8vh' : '15vh'
+      },
+      txtLinkCount () {
+        if (!this.form.txtUris) {
+          return 0
+        }
+        const lines = this.form.txtUris.split('\n').filter(line => line.trim() !== '')
+        return lines.length
       }
     },
     watch: {
@@ -283,7 +323,7 @@
         }
       },
       beforeClose () {
-        if (isEmpty(this.form.uris) && isEmpty(this.form.torrent)) {
+        if (isEmpty(this.form.uris) && isEmpty(this.form.torrent) && isEmpty(this.form.txtUris)) {
           this.handleClose()
         }
       },
@@ -338,6 +378,45 @@
         this.form.torrent = torrent
         this.form.selectFile = selectedFileIndex
       },
+      handleTxtFileChange (file) {
+        if (!file || !file.raw) {
+          return
+        }
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          const content = e.target.result
+          // 解析文件中的链接，每行一个，只过滤空行
+          // 兼容处理：移除链接前后的双引号或单引号
+          const lines = content.split(/\r?\n/).filter(line => {
+            const trimmed = line.trim()
+            return trimmed !== ''
+          }).map(line => {
+            let trimmed = line.trim()
+            // 移除前后的双引号
+            if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+              trimmed = trimmed.slice(1, -1)
+            }
+            return trimmed
+          })
+
+          if (lines.length === 0) {
+            this.$msg.warning(this.$t('task.new-task-uris-required'))
+            return
+          }
+
+          this.$set(this.form, 'txtFileName', file.name)
+          this.$set(this.form, 'txtUris', lines.join('\n'))
+          this.detectThunderResource(this.form.txtUris)
+        }
+        reader.readAsText(file.raw)
+      },
+      clearTxtFile () {
+        this.form.txtFileName = ''
+        this.form.txtUris = ''
+        if (this.$refs.txtUpload) {
+          this.$refs.txtUpload.clearFiles()
+        }
+      },
       handleHistoryDirectorySelected (dir) {
         this.form.dir = dir
       },
@@ -356,6 +435,13 @@
           this.$store.dispatch('task/addUri', payload).catch(err => {
             this.$msg.error(err.message)
           })
+        } else if (type === ADD_TASK_TYPE.TXT) {
+          // TXT 类型使用 txtUris，不限制链接数量，复用 URI 的处理逻辑
+          const txtForm = { ...form, uris: form.txtUris }
+          payload = buildUriPayload(txtForm)
+          this.$store.dispatch('task/addUri', payload).catch(err => {
+            this.$msg.error(err.message)
+          })
         } else if (type === ADD_TASK_TYPE.TORRENT) {
           payload = buildTorrentPayload(form)
           this.$store.dispatch('task/addTorrent', payload).catch(err => {
@@ -370,6 +456,12 @@
       submitForm (formName) {
         this.$refs[formName].validate(valid => {
           if (!valid) {
+            return false
+          }
+
+          // TXT 类型需要检查 txtUris 是否有内容
+          if (this.type === ADD_TASK_TYPE.TXT && isEmpty(this.form.txtUris)) {
+            this.$msg.warning(this.$t('task.new-task-uris-required'))
             return false
           }
 
@@ -430,6 +522,37 @@
         & .el-checkbox__label {
           padding-left: 6px;
         }
+      }
+    }
+  }
+  .txt-upload-area {
+    .txt-uploader {
+      .el-upload {
+        width: 100%;
+      }
+      .el-upload-dragger {
+        width: 100%;
+        height: 120px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+    }
+    .txt-file-info {
+      margin: 10px 0;
+      padding: 8px 12px;
+      background-color: #f5f7fa;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      .txt-file-name {
+        font-weight: bold;
+        margin-right: 15px;
+      }
+      .txt-link-count {
+        color: #67c23a;
+        margin-right: 15px;
       }
     }
   }

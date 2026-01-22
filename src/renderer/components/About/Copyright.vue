@@ -1,23 +1,13 @@
 <template>
   <el-row class="copyright">
     <el-col :span="6" class="copyright-left">
-      <a target="_blank" rel="noopener noreferrer" href="https://motrix.app/">
-        &copy;{{ year }} Motrix
-      </a>
+      <span>&copy;{{ year }} Motrix</span>
     </el-col>
     <el-col :span="18" class="copyright-right">
-      <a target="_blank" rel="noopener noreferrer" href="https://motrix.app/license">
-        {{ $t('about.license') }}
-      </a>
-      <a target="_blank" rel="noopener noreferrer" href="https://motrix.app/about">
-        {{ $t('about.about') }}
-      </a>
-      <a target="_blank" rel="noopener noreferrer" href="https://motrix.app/support">
-        {{ $t('about.support') }}
-      </a>
-      <a target="_blank" rel="noopener noreferrer" href="https://motrix.app/release">
-        {{ $t('about.release') }}
-      </a>
+      <span>{{ $t('about.license') }}</span>
+      <span>{{ $t('about.about') }}</span>
+      <span>{{ $t('about.support') }}</span>
+      <span>{{ $t('about.release') }}</span>
     </el-col>
   </el-row>
 </template>
@@ -38,19 +28,19 @@
 .copyright {
   width: 100%;
   font-size: $--font-size-small;
-  a {
+  span {
     color: $--app-copyright-color;
-    text-decoration: none;
+    margin-left: 8px;
   }
 }
 .copyright-left {
   text-align: left;
+  span {
+    margin-left: 0;
+  }
 }
 
 .copyright-right {
   text-align: right;
-  a {
-    margin-left: 30px;
-  }
 }
 </style>

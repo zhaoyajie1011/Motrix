@@ -27,6 +27,7 @@ export default {
   'reset': 'Discard',
   'cancel': 'Cancel',
   'submit': 'Submit',
+  'clear': 'Clear',
   'gt1d': '> 1 day',
   'hour': 'h',
   'minute': 'm',

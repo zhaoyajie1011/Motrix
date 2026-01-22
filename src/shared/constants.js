@@ -15,6 +15,7 @@ export const APP_RUN_MODE = {
 }
 
 export const ADD_TASK_TYPE = {
+  TXT: 'txt',
   URI: 'uri',
   TORRENT: 'torrent'
 }

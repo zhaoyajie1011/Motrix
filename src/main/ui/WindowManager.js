@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { EventEmitter } from 'node:events'
 import { debounce } from 'lodash'
-import { app, shell, screen, BrowserWindow } from 'electron'
+import { app, screen, BrowserWindow } from 'electron'
 import is from 'electron-is'
 
 import pageConfig from '../configs/page'
@@ -114,7 +114,7 @@ export default class WindowManager extends EventEmitter {
     }
 
     window.webContents.setWindowOpenHandler(({ url }) => {
-      shell.openExternal(url)
+      // 已禁用外部链接跳转功能
       return { action: 'deny' }
     })
 

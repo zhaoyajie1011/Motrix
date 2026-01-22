@@ -40,6 +40,8 @@ export const initTaskForm = state => {
     selectFile: NONE_SELECTED_FILES,
     split,
     torrent: '',
+    txtFileName: '',
+    txtUris: '',
     uris: addTaskUrl,
     userAgent: '',
     authorization: '',

@@ -27,6 +27,7 @@ export default {
   'reset': '放弃',
   'cancel': '取 消',
   'submit': '提 交',
+  'clear': '清除',
   'gt1d': '超过一天',
   'hour': '时',
   'minute': '分',

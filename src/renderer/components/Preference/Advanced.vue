@@ -109,10 +109,9 @@
               />
             </el-select>
             <div class="el-form-item__info" style="margin-top: 8px;">
-              <a target="_blank" href="https://github.com/agalwood/Motrix/wiki/Proxy" rel="noopener noreferrer">
+              <span>
                 {{ $t('preferences.proxy-tips') }}
-                <mo-icon name="link" width="12" height="12" />
-              </a>
+              </span>
             </div>
           </el-col>
         </el-form-item>
@@ -191,14 +190,6 @@
             </el-input>
             <div class="el-form-item__info" style="margin-top: 8px;">
               {{ $t('preferences.bt-tracker-tips') }}
-              <a target="_blank" href="https://github.com/ngosang/trackerslist" rel="noopener noreferrer">
-                ngosang/trackerslist
-                <mo-icon name="link" width="12" height="12" />
-              </a>
-              <a target="_blank" href="https://github.com/XIU2/TrackersListCollection" rel="noopener noreferrer">
-                XIU2/TrackersListCollection
-                <mo-icon name="link" width="12" height="12" />
-              </a>
             </div>
           </div>
           <div class="form-item-sub">
@@ -255,10 +246,9 @@
                 </i>
               </el-input>
               <div class="el-form-item__info" style="margin-top: 8px;">
-                <a target="_blank" href="https://github.com/agalwood/Motrix/wiki/RPC" rel="noopener noreferrer">
+                <span>
                   {{ $t('preferences.rpc-secret-tips') }}
-                  <mo-icon name="link" width="12" height="12" />
-                </a>
+                </span>
               </div>
             </el-col>
           </el-row>
