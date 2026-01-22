@@ -428,25 +428,19 @@
         this.showAdvanced = false
         this.form = initTaskForm(this.$store.state)
       },
-      addTask (type, form) {
+      async addTask (type, form) {
         let payload = null
         if (type === ADD_TASK_TYPE.URI) {
           payload = buildUriPayload(form)
-          this.$store.dispatch('task/addUri', payload).catch(err => {
-            this.$msg.error(err.message)
-          })
+          return this.$store.dispatch('task/addUri', payload)
         } else if (type === ADD_TASK_TYPE.TXT) {
           // TXT 类型使用 txtUris，不限制链接数量，复用 URI 的处理逻辑
           const txtForm = { ...form, uris: form.txtUris }
           payload = buildUriPayload(txtForm)
-          this.$store.dispatch('task/addUri', payload).catch(err => {
-            this.$msg.error(err.message)
-          })
+          return this.$store.dispatch('task/addUri', payload)
         } else if (type === ADD_TASK_TYPE.TORRENT) {
           payload = buildTorrentPayload(form)
-          this.$store.dispatch('task/addTorrent', payload).catch(err => {
-            this.$msg.error(err.message)
-          })
+          return this.$store.dispatch('task/addTorrent', payload)
         } else if (type === 'metalink') {
         // @TODO addMetalink
         } else {
@@ -454,7 +448,7 @@
         }
       },
       submitForm (formName) {
-        this.$refs[formName].validate(valid => {
+        this.$refs[formName].validate(async (valid) => {
           if (!valid) {
             return false
           }
@@ -466,7 +460,8 @@
           }
 
           try {
-            this.addTask(this.type, this.form)
+            // 等待任务添加完成
+            await this.addTask(this.type, this.form)
 
             this.$store.dispatch('app/hideAddTaskDialog')
             if (this.form.newTaskShowDownloading) {

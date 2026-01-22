@@ -173,7 +173,23 @@ export default class Api {
       outs,
       options
     } = params
-    const tasks = uris.map((uri, index) => {
+
+    // 过滤掉空的 URI
+    const validUris = uris.filter(uri => {
+      if (!uri || typeof uri !== 'string') {
+        return false
+      }
+      return uri.trim().length > 0
+    })
+
+    if (validUris.length === 0) {
+      console.warn('[Motrix] No valid URIs to add')
+      return Promise.resolve([])
+    }
+
+    console.log(`[Motrix] Adding ${validUris.length} URIs`)
+
+    const tasks = validUris.map((uri, index) => {
       const engineOptions = formatOptionsForEngine(options)
       if (outs && outs[index]) {
         engineOptions.out = outs[index]
@@ -182,8 +198,8 @@ export default class Api {
       return ['aria2.addUri', ...args]
     })
 
-    // 分批处理，每批最多 100 个任务，避免一次性发送过多请求导致超时
-    const BATCH_SIZE = 100
+    // 分批处理，每批最多 50 个任务，避免一次性发送过多请求导致超时
+    const BATCH_SIZE = 50
     if (tasks.length <= BATCH_SIZE) {
       return this.client.multicall(tasks)
     }
@@ -194,14 +210,34 @@ export default class Api {
       batches.push(tasks.slice(i, i + BATCH_SIZE))
     }
 
-    // 串行执行每个批次，避免并发过高
+    console.log(`[Motrix] Adding ${tasks.length} tasks in ${batches.length} batches`)
+
+    // 串行执行每个批次
+    const self = this
+    let batchIndex = 0
+    let successCount = 0
+    let failCount = 0
+
     return batches.reduce((promise, batch) => {
       return promise.then((results) => {
-        return this.client.multicall(batch).then((batchResults) => {
-          return results.concat(batchResults || [])
-        })
+        batchIndex++
+        console.log(`[Motrix] Processing batch ${batchIndex}/${batches.length}`)
+        return self.client.multicall(batch)
+          .then((batchResults) => {
+            successCount += batch.length
+            console.log(`[Motrix] Batch ${batchIndex} completed, total success: ${successCount}`)
+            return results.concat(batchResults || [])
+          })
+          .catch((err) => {
+            failCount += batch.length
+            console.error(`[Motrix] Batch ${batchIndex} failed:`, err)
+            return results
+          })
       })
-    }, Promise.resolve([]))
+    }, Promise.resolve([])).then((results) => {
+      console.log(`[Motrix] All batches completed. Success: ${successCount}, Failed: ${failCount}`)
+      return results
+    })
   }
 
   addTorrent (params) {
@@ -225,7 +261,7 @@ export default class Api {
   }
 
   fetchDownloadingTaskList (params = {}) {
-    const { offset = 0, num = 20, keys } = params
+    const { offset = 0, num = 1000, keys } = params
     const activeArgs = compactUndefined([keys])
     const waitingArgs = compactUndefined([offset, num, keys])
     return new Promise((resolve, reject) => {
@@ -244,13 +280,13 @@ export default class Api {
   }
 
   fetchWaitingTaskList (params = {}) {
-    const { offset = 0, num = 20, keys } = params
+    const { offset = 0, num = 1000, keys } = params
     const args = compactUndefined([offset, num, keys])
     return this.client.call('tellWaiting', ...args)
   }
 
   fetchStoppedTaskList (params = {}) {
-    const { offset = 0, num = 20, keys } = params
+    const { offset = 0, num = 1000, keys } = params
     const args = compactUndefined([offset, num, keys])
     return this.client.call('tellStopped', ...args)
   }

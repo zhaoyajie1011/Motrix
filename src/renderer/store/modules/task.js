@@ -122,10 +122,15 @@ const actions = {
   },
   addUri ({ dispatch }, data) {
     const { uris, outs, options } = data
+    console.log(`[Motrix] addUri: Adding ${uris.length} URIs`)
     return api.addUri({ uris, outs, options })
-      .then(() => {
+      .then((results) => {
         dispatch('fetchList')
         dispatch('app/updateAddTaskOptions', {}, { root: true })
+      })
+      .catch((err) => {
+        console.error('[Motrix] addUri: Failed to add tasks:', err)
+        throw err
       })
   },
   addTorrent ({ dispatch }, data) {
