@@ -25,11 +25,12 @@ const state = {
     numStopped: 0
   },
   addTaskVisible: false,
-  addTaskType: ADD_TASK_TYPE.URI,
+  addTaskType: ADD_TASK_TYPE.TXT, // 默认选中批量导入tab
   addTaskUrl: '',
   addTaskTorrents: [],
   addTaskOptions: {},
-  progress: 0
+  progress: 0,
+  batchImportProgress: null // 批量导入进度 { current, total, batchIndex, batchCount, done }
 }
 
 const getters = {
@@ -96,6 +97,9 @@ const mutations = {
   },
   UPDATE_PROGRESS (state, progress) {
     state.progress = progress
+  },
+  UPDATE_BATCH_IMPORT_PROGRESS (state, progress) {
+    state.batchImportProgress = progress
   }
 }
 

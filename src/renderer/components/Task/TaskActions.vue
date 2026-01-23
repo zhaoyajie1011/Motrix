@@ -14,12 +14,12 @@
       class="item"
       effect="dark"
       placement="bottom"
-      :content="$t('task.delete-selected-tasks')"
+      :content="deleteButtonTooltip"
       v-if="currentList !== 'stopped'"
     >
       <i
         class="task-action"
-        :class="{ disabled: selectedGidListCount === 0 }"
+        :class="{ disabled: taskListCount === 0 }"
         @click="onBatchDeleteClick">
         <mo-icon name="delete" width="14" height="14" />
       </i>
@@ -95,8 +95,15 @@
     computed: {
       ...mapState('task', {
         currentList: state => state.currentList,
-        selectedGidListCount: state => state.selectedGidList.length
-      })
+        selectedGidListCount: state => state.selectedGidList.length,
+        taskListCount: state => state.taskList.length
+      }),
+      deleteButtonTooltip () {
+        if (this.selectedGidListCount > 0) {
+          return this.$t('task.delete-selected-tasks')
+        }
+        return this.$t('task.delete-all-tasks')
+      }
     },
     filters: {
       bytesToSize,

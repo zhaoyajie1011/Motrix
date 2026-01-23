@@ -120,15 +120,45 @@ const actions = {
   updateCurrentTaskGid ({ commit }, gid) {
     commit('UPDATE_CURRENT_TASK_GID', gid)
   },
-  addUri ({ dispatch }, data) {
+  addUri ({ dispatch, commit }, data) {
     const { uris, outs, options } = data
-    console.log(`[Motrix] addUri: Adding ${uris.length} URIs`)
-    return api.addUri({ uris, outs, options })
-      .then((results) => {
+    const taskCount = uris.length
+    console.log(`[Motrix] addUri: Adding ${taskCount} URIs`)
+
+    // 大量任务时显示进度提示
+    const isBatchImport = taskCount > 50
+
+    const onProgress = isBatchImport
+      ? (progress) => {
+        // 通过commit更新进度状态，可用于UI显示
+        commit('app/UPDATE_BATCH_IMPORT_PROGRESS', progress, { root: true })
+      }
+      : null
+
+    if (isBatchImport) {
+      // 初始化进度状态
+      commit('app/UPDATE_BATCH_IMPORT_PROGRESS', {
+        current: 0,
+        total: taskCount,
+        batchIndex: 0,
+        batchCount: Math.ceil(taskCount / 50),
+        done: false
+      }, { root: true })
+    }
+
+    return api.addUri({ uris, outs, options }, onProgress)
+      .then(() => {
+        if (isBatchImport) {
+          // 清除进度状态
+          commit('app/UPDATE_BATCH_IMPORT_PROGRESS', null, { root: true })
+        }
         dispatch('fetchList')
         dispatch('app/updateAddTaskOptions', {}, { root: true })
       })
       .catch((err) => {
+        if (isBatchImport) {
+          commit('app/UPDATE_BATCH_IMPORT_PROGRESS', null, { root: true })
+        }
         console.error('[Motrix] addUri: Failed to add tasks:', err)
         throw err
       })

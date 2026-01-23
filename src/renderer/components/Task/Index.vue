@@ -339,31 +339,45 @@
           selectedGidListCount,
           taskList
         } = this
-        if (selectedGidListCount === 0) {
+
+        // 如果没有任务，直接返回
+        if (taskList.length === 0) {
           return
         }
 
-        const selectedTaskList = taskList.filter((task) => {
-          return selectedGidList.includes(task.gid)
-        })
+        // 如果没有选中任务，删除全部任务
+        const isDeleteAll = selectedGidListCount === 0
+        const targetTaskList = isDeleteAll
+          ? taskList
+          : taskList.filter((task) => {
+            return selectedGidList.includes(task.gid)
+          })
+        const count = `${targetTaskList.length}`
 
         if (noConfirmBeforeDelete) {
-          this.removeTasks(selectedTaskList, deleteWithFiles)
+          this.removeTasks(targetTaskList, deleteWithFiles)
           return
         }
 
-        const count = `${selectedGidListCount}`
+        // 根据是否删除全部显示不同的确认信息
+        const title = isDeleteAll
+          ? this.$t('task.delete-all-tasks')
+          : this.$t('task.delete-selected-tasks')
+        const message = isDeleteAll
+          ? this.$t('task.delete-all-task-confirm', { count })
+          : this.$t('task.batch-delete-task-confirm', { count })
+
         dialog.showMessageBox({
           type: 'warning',
-          title: this.$t('task.delete-selected-task'),
-          message: this.$t('task.batch-delete-task-confirm', { count }),
+          title,
+          message,
           buttons: [this.$t('app.yes'), this.$t('app.no')],
           cancelId: 1,
           checkboxLabel: this.$t('task.delete-task-label'),
           checkboxChecked: deleteWithFiles
         }).then(({ response, checkboxChecked }) => {
           if (response === 0) {
-            this.removeTasks(selectedTaskList, checkboxChecked)
+            this.removeTasks(targetTaskList, checkboxChecked)
           }
         })
       },

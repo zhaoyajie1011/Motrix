@@ -7,6 +7,12 @@ import { IS_PORTABLE, PORTABLE_EXECUTABLE_DIR } from '@shared/constants'
 const level = is.production() ? 'info' : 'silly'
 logger.transports.file.level = level
 
+// 禁用IPC传输，防止渲染进程销毁后发送消息导致错误
+// "Error: Render frame was disposed before WebFrameMain could be accessed"
+if (logger.transports.ipc) {
+  logger.transports.ipc.level = false
+}
+
 if (IS_PORTABLE) {
   logger.transports.file.resolvePath = () => join(PORTABLE_EXECUTABLE_DIR, 'main.log')
 }

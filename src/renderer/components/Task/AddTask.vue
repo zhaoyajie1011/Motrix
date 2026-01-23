@@ -271,7 +271,8 @@
       isRenderer: () => is.renderer(),
       isMas: () => is.mas(),
       ...mapState('app', {
-        taskList: state => state.taskList
+        taskList: state => state.taskList,
+        batchImportProgress: state => state.batchImportProgress
       }),
       ...mapState('preference', {
         config: state => state.config
@@ -283,11 +284,25 @@
         return this.showAdvanced ? '8vh' : '15vh'
       },
       txtLinkCount () {
+        // 优先使用txtTotalCount（从文件解析得到的完整数量）
+        if (this.form.txtTotalCount) {
+          return this.form.txtTotalCount
+        }
         if (!this.form.txtUris) {
           return 0
         }
-        const lines = this.form.txtUris.split('\n').filter(line => line.trim() !== '')
+        const lines = this.form.txtUris.split('\n').filter(line => line.trim() !== '' && !line.startsWith('...'))
         return lines.length
+      },
+      isImporting () {
+        return this.batchImportProgress !== null && !this.batchImportProgress.done
+      },
+      importProgressPercent () {
+        if (!this.batchImportProgress) {
+          return 0
+        }
+        const { current, total } = this.batchImportProgress
+        return Math.round((current / total) * 100)
       }
     },
     watch: {
@@ -405,14 +420,22 @@
           }
 
           this.$set(this.form, 'txtFileName', file.name)
-          this.$set(this.form, 'txtUris', lines.join('\n'))
-          this.detectThunderResource(this.form.txtUris)
+          // 存储完整的链接数组，而不是字符串
+          this.$set(this.form, 'txtLines', lines)
+          this.$set(this.form, 'txtTotalCount', lines.length)
+          // 只显示前20行预览，避免textarea渲染大量内容导致卡死
+          const previewLines = lines.slice(0, 20)
+          const previewText = previewLines.join('\n') + (lines.length > 20 ? `\n... 共 ${lines.length} 个链接` : '')
+          this.$set(this.form, 'txtUris', previewText)
+          this.detectThunderResource(previewText)
         }
         reader.readAsText(file.raw)
       },
       clearTxtFile () {
         this.form.txtFileName = ''
         this.form.txtUris = ''
+        this.form.txtLines = []
+        this.form.txtTotalCount = 0
         if (this.$refs.txtUpload) {
           this.$refs.txtUpload.clearFiles()
         }
@@ -434,8 +457,15 @@
           payload = buildUriPayload(form)
           return this.$store.dispatch('task/addUri', payload)
         } else if (type === ADD_TASK_TYPE.TXT) {
-          // TXT 类型使用 txtUris，不限制链接数量，复用 URI 的处理逻辑
-          const txtForm = { ...form, uris: form.txtUris }
+          // TXT 类型：优先使用 txtLines 数组（完整的链接列表）
+          // 如果没有 txtLines，则回退到解析 txtUris 字符串
+          let urisString = ''
+          if (form.txtLines && form.txtLines.length > 0) {
+            urisString = form.txtLines.join('\n')
+          } else {
+            urisString = form.txtUris
+          }
+          const txtForm = { ...form, uris: urisString }
           payload = buildUriPayload(txtForm)
           return this.$store.dispatch('task/addUri', payload)
         } else if (type === ADD_TASK_TYPE.TORRENT) {
@@ -460,10 +490,22 @@
           }
 
           try {
+            // 检查是否是大量任务导入（超过50个）
+            const isBatchImport = this.type === ADD_TASK_TYPE.TXT && this.txtLinkCount > 50
+
+            // 如果是大量任务导入，先关闭AddTask对话框，让进度对话框显示
+            if (isBatchImport) {
+              this.$store.dispatch('app/hideAddTaskDialog')
+            }
+
             // 等待任务添加完成
             await this.addTask(this.type, this.form)
 
-            this.$store.dispatch('app/hideAddTaskDialog')
+            // 如果不是大量导入，在这里关闭对话框
+            if (!isBatchImport) {
+              this.$store.dispatch('app/hideAddTaskDialog')
+            }
+
             if (this.form.newTaskShowDownloading) {
               this.$router.push({
                 path: '/task/active'

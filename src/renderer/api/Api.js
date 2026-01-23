@@ -167,7 +167,7 @@ export default class Api {
     return this.client.call('getGlobalStat')
   }
 
-  addUri (params) {
+  addUri (params, onProgress) {
     const {
       uris,
       outs,
@@ -187,6 +187,7 @@ export default class Api {
       return Promise.resolve([])
     }
 
+    // 只在开始时打印一次日志，避免大量console输出
     console.log(`[Motrix] Adding ${validUris.length} URIs`)
 
     const tasks = validUris.map((uri, index) => {
@@ -198,8 +199,10 @@ export default class Api {
       return ['aria2.addUri', ...args]
     })
 
-    // 分批处理，每批最多 50 个任务，避免一次性发送过多请求导致超时
-    const BATCH_SIZE = 50
+    // 分批处理，每批最多 30 个任务
+    const BATCH_SIZE = 30
+    const BATCH_DELAY = 200 // 批次间延迟200ms，给系统更多喘息时间
+
     if (tasks.length <= BATCH_SIZE) {
       return this.client.multicall(tasks)
     }
@@ -210,32 +213,58 @@ export default class Api {
       batches.push(tasks.slice(i, i + BATCH_SIZE))
     }
 
-    console.log(`[Motrix] Adding ${tasks.length} tasks in ${batches.length} batches`)
-
     // 串行执行每个批次
     const self = this
     let batchIndex = 0
     let successCount = 0
-    let failCount = 0
+    const totalCount = tasks.length
+
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
     return batches.reduce((promise, batch) => {
-      return promise.then((results) => {
+      return promise.then(async (results) => {
         batchIndex++
-        console.log(`[Motrix] Processing batch ${batchIndex}/${batches.length}`)
-        return self.client.multicall(batch)
-          .then((batchResults) => {
-            successCount += batch.length
-            console.log(`[Motrix] Batch ${batchIndex} completed, total success: ${successCount}`)
-            return results.concat(batchResults || [])
+
+        // 回调进度（不打印日志）
+        if (typeof onProgress === 'function') {
+          onProgress({
+            current: successCount,
+            total: totalCount,
+            batchIndex,
+            batchCount: batches.length
           })
-          .catch((err) => {
-            failCount += batch.length
-            console.error(`[Motrix] Batch ${batchIndex} failed:`, err)
-            return results
-          })
+        }
+
+        try {
+          const batchResults = await self.client.multicall(batch)
+          successCount += batch.length
+
+          // 批次间添加延迟
+          if (batchIndex < batches.length) {
+            await delay(BATCH_DELAY)
+          }
+
+          return results.concat(batchResults || [])
+        } catch (err) {
+          // 即使失败也继续
+          if (batchIndex < batches.length) {
+            await delay(BATCH_DELAY)
+          }
+          return results
+        }
       })
     }, Promise.resolve([])).then((results) => {
-      console.log(`[Motrix] All batches completed. Success: ${successCount}, Failed: ${failCount}`)
+      console.log(`[Motrix] All batches completed. Total: ${successCount}`)
+      // 最终进度回调
+      if (typeof onProgress === 'function') {
+        onProgress({
+          current: successCount,
+          total: totalCount,
+          batchIndex: batches.length,
+          batchCount: batches.length,
+          done: true
+        })
+      }
       return results
     })
   }
@@ -261,33 +290,46 @@ export default class Api {
   }
 
   fetchDownloadingTaskList (params = {}) {
-    const { offset = 0, num = 1000, keys } = params
-    const activeArgs = compactUndefined([keys])
-    const waitingArgs = compactUndefined([offset, num, keys])
+    // 严格限制获取数量，避免大量任务导致渲染进程崩溃
+    // 只获取列表显示需要的关键字段，减少内存占用
+    const { offset = 0, num = 10000, keys } = params
+    const listKeys = keys || [
+      'gid', 'status', 'totalLength', 'completedLength',
+      'downloadSpeed', 'uploadSpeed', 'dir', 'files', 'bittorrent'
+    ]
+    const activeArgs = compactUndefined([listKeys])
+    const waitingArgs = compactUndefined([offset, num, listKeys])
     return new Promise((resolve, reject) => {
       this.client.multicall([
         ['aria2.tellActive', ...activeArgs],
         ['aria2.tellWaiting', ...waitingArgs]
       ]).then((data) => {
-        console.log('[Motrix] fetch downloading task list data:', data)
         const result = mergeTaskResult(data)
         resolve(result)
       }).catch((err) => {
-        console.log('[Motrix] fetch downloading task list fail:', err)
+        console.error('[Motrix] fetch downloading task list fail:', err)
         reject(err)
       })
     })
   }
 
   fetchWaitingTaskList (params = {}) {
-    const { offset = 0, num = 1000, keys } = params
-    const args = compactUndefined([offset, num, keys])
+    const { offset = 0, num = 10000, keys } = params
+    const listKeys = keys || [
+      'gid', 'status', 'totalLength', 'completedLength',
+      'downloadSpeed', 'uploadSpeed', 'dir', 'files', 'bittorrent'
+    ]
+    const args = compactUndefined([offset, num, listKeys])
     return this.client.call('tellWaiting', ...args)
   }
 
   fetchStoppedTaskList (params = {}) {
-    const { offset = 0, num = 1000, keys } = params
-    const args = compactUndefined([offset, num, keys])
+    const { offset = 0, num = 10000, keys } = params
+    const listKeys = keys || [
+      'gid', 'status', 'totalLength', 'completedLength',
+      'downloadSpeed', 'uploadSpeed', 'dir', 'files', 'bittorrent'
+    ]
+    const args = compactUndefined([offset, num, listKeys])
     return this.client.call('tellStopped', ...args)
   }
 
@@ -412,7 +454,28 @@ export default class Api {
       const args = compactUndefined([gid, _options])
       return [method, ...args]
     })
-    return this.client.multicall(data)
+
+    // 分批处理，每批最多 10000 个任务
+    const BATCH_SIZE = 10000
+
+    if (data.length <= BATCH_SIZE) {
+      return this.client.multicall(data)
+    }
+
+    // 分批执行
+    const batches = []
+    for (let i = 0; i < data.length; i += BATCH_SIZE) {
+      batches.push(data.slice(i, i + BATCH_SIZE))
+    }
+
+    // 串行执行每个批次
+    const self = this
+    return batches.reduce((promise, batch) => {
+      return promise.then(async (results) => {
+        const batchResults = await self.client.multicall(batch)
+        return results.concat(batchResults || [])
+      })
+    }, Promise.resolve([]))
   }
 
   batchChangeOption (params = {}) {
